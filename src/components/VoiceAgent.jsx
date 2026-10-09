@@ -47,6 +47,9 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
   const speechStartTimeRef = useRef(null);
   const silenceTimerRef = useRef(null);
   const latestSpokenTextRef = useRef('');
+  const isSendingRef = useRef(false);
+  const lastSentTextRef = useRef('');
+  const lastSentTimeRef = useRef(0);
 
   // Keep refs synchronized
   useEffect(() => {
@@ -259,23 +262,27 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
       utterance.onstart = () => {
         setIsSpeaking(true);
         isSpeakingRef.current = true;
+        // Turn off mic completely while speaking to prevent self-echo
+        stopListening();
       };
 
       utterance.onend = () => {
         setIsSpeaking(false);
         isSpeakingRef.current = false;
+        isSendingRef.current = false;
         // Ensure complete text is displayed
         setTranscript((prev) =>
           prev.map((m) => (m.id === msgId ? { ...m, text: fullText } : m))
         );
-        // Turn-taking: resume listening automatically for continuous conversation
-        scheduleListeningRestart(300);
+        // Turn-taking: wait 600ms acoustic grace period to let room echo dissipate
+        scheduleListeningRestart(600);
       };
 
       utterance.onerror = () => {
         setIsSpeaking(false);
         isSpeakingRef.current = false;
-        scheduleListeningRestart(300);
+        isSendingRef.current = false;
+        scheduleListeningRestart(600);
       };
 
       // Anchor to global window to avoid Chrome GC bug & resume audio pipeline
@@ -297,9 +304,42 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
     }
   };
 
+  // Single entry point for user utterances (prevents duplicate triggers & echo)
+  const handleFinalUtterance = (text) => {
+    if (!text || text.trim().length < 2) return;
+    if (isSendingRef.current || isThinkingRef.current || isSpeakingRef.current) return;
+
+    const clean = text.trim();
+
+    // Suppress duplicate speech recognized within 3.5 seconds
+    if (
+      clean.toLowerCase() === lastSentTextRef.current.toLowerCase() &&
+      Date.now() - lastSentTimeRef.current < 3500
+    ) {
+      console.log('Suppressed duplicate utterance:', clean);
+      return;
+    }
+
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    latestSpokenTextRef.current = '';
+    setInterimText('');
+
+    // Force stop recognition before sending to avoid microphone capturing trailing frames
+    stopListening();
+
+    const durationSec = Math.max(1, Math.round((Date.now() - (speechStartTimeRef.current || Date.now())) / 1000));
+    sendMessage(clean, durationSec);
+  };
+
   // Continuous SpeechRecognition Setup
   const startListening = () => {
-    if (!isCallActiveRef.current || isMutedRef.current || isSpeakingRef.current || isThinkingRef.current) {
+    if (
+      !isCallActiveRef.current ||
+      isMutedRef.current ||
+      isSpeakingRef.current ||
+      isThinkingRef.current ||
+      isSendingRef.current
+    ) {
       return;
     }
 
@@ -335,6 +375,11 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
       };
 
       recognition.onresult = (event) => {
+        // Discard any incoming audio frames if agent is talking, thinking, or already sending
+        if (isSpeakingRef.current || isThinkingRef.current || isSendingRef.current) {
+          return;
+        }
+
         let interim = '';
         let finalized = '';
 
@@ -348,56 +393,31 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
         }
 
         const candidateText = (finalized || interim).trim();
+        if (!candidateText) return;
 
-        if (candidateText) {
-          latestSpokenTextRef.current = candidateText;
-
-          // Barge-in if agent is speaking
-          if (isSpeakingRef.current) {
-            handleInterrupt();
-          }
-
-          if (interim) {
-            setInterimText(interim);
-          }
-
-          // Fast Silence Detector: trigger immediately when user pauses for 750ms
-          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-          silenceTimerRef.current = setTimeout(() => {
-            const textToSend = latestSpokenTextRef.current;
-            if (
-              textToSend &&
-              textToSend.length >= 2 &&
-              isCallActiveRef.current &&
-              !isThinkingRef.current &&
-              !isSpeakingRef.current
-            ) {
-              latestSpokenTextRef.current = '';
-              setInterimText('');
-              const durationSec = Math.max(1, Math.round((Date.now() - speechStartTimeRef.current) / 1000));
-              try {
-                recognition.stop();
-              } catch (e) {}
-              setIsListening(false);
-              isListeningRef.current = false;
-              sendMessage(textToSend, durationSec);
-            }
-          }, 750);
+        // User spoke while agent was active -> barge-in
+        if (isSpeakingRef.current) {
+          handleInterrupt();
+          return;
         }
 
-        // If browser provided final flag immediately, dispatch without waiting for silence timer
+        if (interim) {
+          setInterimText(interim);
+        }
+
+        // Path A: Browser marked chunk as final -> process immediately
         if (finalized && finalized.trim()) {
           if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-          latestSpokenTextRef.current = '';
-          setInterimText('');
-          const durationSec = Math.max(1, Math.round((Date.now() - speechStartTimeRef.current) / 1000));
-          try {
-            recognition.stop();
-          } catch (e) {}
-          setIsListening(false);
-          isListeningRef.current = false;
-          sendMessage(finalized.trim(), durationSec);
+          handleFinalUtterance(finalized.trim());
+          return;
         }
+
+        // Path B: Interim speech -> wait for 800ms natural silence pause
+        latestSpokenTextRef.current = candidateText;
+        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = setTimeout(() => {
+          handleFinalUtterance(latestSpokenTextRef.current);
+        }, 800);
       };
 
       recognition.onerror = (event) => {
@@ -409,12 +429,13 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
       recognition.onend = () => {
         setIsListening(false);
         isListeningRef.current = false;
-        // Keep-alive loop: if call is still active and agent is idle, restart recognition!
+        // Keep-alive loop: restart only if call is active and everything is completely idle
         if (
           isCallActiveRef.current &&
           !isMutedRef.current &&
           !isSpeakingRef.current &&
-          !isThinkingRef.current
+          !isThinkingRef.current &&
+          !isSendingRef.current
         ) {
           scheduleListeningRestart(200);
         }
@@ -455,16 +476,29 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
     }
   };
 
-  // Send message to backend Gemini API
+  // Send message to backend Gemini API (atomic lock prevents double-sending)
   const sendMessage = async (userText, audioInputSeconds = 2) => {
     const activeSession = sessionRef.current;
-    if (!activeSession || !userText.trim()) return;
+    if (!activeSession || !userText || !userText.trim()) return;
+
+    // Prevent duplicate send if already in-flight or thinking
+    if (isSendingRef.current || isThinkingRef.current) {
+      console.log('Ignored concurrent/duplicate sendMessage call');
+      return;
+    }
+
+    isSendingRef.current = true;
+    lastSentTextRef.current = userText.trim();
+    lastSentTimeRef.current = Date.now();
+
+    // Turn off mic while network request is in flight
+    stopListening();
 
     // Optimistically show user message
     const userMsg = {
       id: Date.now(),
       role: 'user',
-      text: userText,
+      text: userText.trim(),
       timestamp: new Date().toISOString(),
       audioSeconds: audioInputSeconds,
     };
@@ -477,7 +511,7 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: userText,
+          message: userText.trim(),
           audioInputSeconds,
         }),
       });
@@ -487,6 +521,7 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
 
       setIsThinking(false);
       isThinkingRef.current = false;
+      isSendingRef.current = false;
 
       setSession(data.session);
       sessionRef.current = data.session;
@@ -497,6 +532,7 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
     } catch (err) {
       setIsThinking(false);
       isThinkingRef.current = false;
+      isSendingRef.current = false;
       setError(err.message);
       // Resume listening loop on error so call doesn't get stuck
       scheduleListeningRestart(1000);
