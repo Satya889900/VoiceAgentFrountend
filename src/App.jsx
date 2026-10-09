@@ -2,9 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import Navbar from './components/Navbar';
 import VoiceAgent from './components/VoiceAgent';
 import UsageDashboard from './components/UsageDashboard';
+import Login from './components/Login';
 import './App.css';
 
 function App() {
+  const [user, setUser] = useState(() => {
+    // Persist login across page refresh using sessionStorage
+    const saved = sessionStorage.getItem('va_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+
   const [activeTab, setActiveTab] = useState('agent');
   const [metrics, setMetrics] = useState({
     totalSessions: 0,
@@ -22,7 +29,21 @@ function App() {
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef(null);
 
-  // Fetch initial data
+  const handleLogin = (loggedInUser) => {
+    sessionStorage.setItem('va_user', JSON.stringify(loggedInUser));
+    setUser(loggedInUser);
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('va_user');
+    setUser(null);
+    // Close any open WebSocket on logout
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+  };
+
+  // Fetch initial backend data
   const fetchData = async () => {
     try {
       const [resMetrics, resSessions, resPersonas] = await Promise.all([
@@ -50,21 +71,20 @@ function App() {
     }
   };
 
-  // Setup WebSocket connection for live telemetry updates
+  // Setup WebSocket + polling (only when logged in)
   useEffect(() => {
+    if (!user) return;
+
     fetchData();
 
     const connectWebSocket = () => {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      // In Vite dev proxy, /ws is proxied to backend port 5000, or connect directly to 5000 if needed
       const wsUrl = `${protocol}//${window.location.hostname}:5000/ws`;
 
       try {
         const ws = new WebSocket(wsUrl);
 
-        ws.onopen = () => {
-          setIsConnected(true);
-        };
+        ws.onopen = () => setIsConnected(true);
 
         ws.onmessage = (event) => {
           try {
@@ -80,13 +100,10 @@ function App() {
 
         ws.onclose = () => {
           setIsConnected(false);
-          // Try to reconnect in 3s
-          setTimeout(connectWebSocket, 3000);
+          if (user) setTimeout(connectWebSocket, 3000);
         };
 
-        ws.onerror = () => {
-          ws.close();
-        };
+        ws.onerror = () => ws.close();
 
         wsRef.current = ws;
       } catch (err) {
@@ -96,18 +113,22 @@ function App() {
 
     connectWebSocket();
 
-    // Fallback polling every 5s
     const pollInterval = setInterval(fetchData, 5000);
 
     return () => {
       clearInterval(pollInterval);
       if (wsRef.current) wsRef.current.close();
     };
-  }, []);
+  }, [user]);
 
-  const handleSessionUpdate = (updatedSession) => {
+  const handleSessionUpdate = () => {
     fetchData();
   };
+
+  // Show Login screen if not authenticated
+  if (!user) {
+    return <Login onLogin={handleLogin} />;
+  }
 
   return (
     <div className="app-shell">
@@ -116,6 +137,8 @@ function App() {
         setActiveTab={setActiveTab}
         activeSessionsCount={metrics?.activeSessions || 0}
         isConnected={isConnected}
+        user={user}
+        onLogout={handleLogout}
       />
 
       <main className="main-content">

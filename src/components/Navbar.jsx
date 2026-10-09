@@ -1,7 +1,7 @@
 import React from 'react';
-import { Mic, BarChart2, Radio, CheckCircle, AlertCircle } from 'lucide-react';
+import { Mic, BarChart2, Radio, CheckCircle, AlertCircle, LogOut, User } from 'lucide-react';
 
-export default function Navbar({ activeTab, setActiveTab, activeSessionsCount, isConnected }) {
+export default function Navbar({ activeTab, setActiveTab, activeSessionsCount, isConnected, user, onLogout }) {
   return (
     <nav className="navbar">
       <div className="nav-brand">
@@ -35,15 +35,34 @@ export default function Navbar({ activeTab, setActiveTab, activeSessionsCount, i
         </button>
       </div>
 
-      <div className="nav-status">
-        {isConnected ? (
-          <span className="status-indicator online">
-            <CheckCircle size={14} /> Backend Connected
-          </span>
-        ) : (
-          <span className="status-indicator offline">
-            <AlertCircle size={14} /> Reconnecting...
-          </span>
+      <div className="nav-right">
+        <div className="nav-status">
+          {isConnected ? (
+            <span className="status-indicator online">
+              <CheckCircle size={14} /> Backend Connected
+            </span>
+          ) : (
+            <span className="status-indicator offline">
+              <AlertCircle size={14} /> Reconnecting...
+            </span>
+          )}
+        </div>
+
+        {user && (
+          <div className="nav-user">
+            <div className="user-avatar">{user.avatar}</div>
+            <div className="user-info">
+              <span className="user-name">{user.displayName}</span>
+              <span className="user-role">{user.role}</span>
+            </div>
+            <button
+              className="logout-btn"
+              onClick={onLogout}
+              title="Sign Out"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
         )}
       </div>
     </nav>
