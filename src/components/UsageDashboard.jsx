@@ -15,6 +15,7 @@ import {
   User,
   RotateCw
 } from 'lucide-react';
+import AnalyticsCharts from './AnalyticsCharts';
 
 export default function UsageDashboard({ metrics, sessions = [], onRefresh, isRefreshing = false }) {
   const [selectedSession, setSelectedSession] = useState(null);
@@ -121,6 +122,9 @@ export default function UsageDashboard({ metrics, sessions = [], onRefresh, isRe
           <span className="metric-sub">Gemini 2.0 Flash Pricing</span>
         </div>
       </div>
+
+      {/* Interactive Telemetry & Activity Graphs */}
+      <AnalyticsCharts metrics={metrics} sessions={sessions} />
 
       {/* Pricing Model Info Box */}
       <div className="pricing-box">

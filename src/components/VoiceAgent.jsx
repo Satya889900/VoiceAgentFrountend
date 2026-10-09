@@ -45,6 +45,8 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
   const timerRef = useRef(null);
   const transcriptEndRef = useRef(null);
   const speechStartTimeRef = useRef(null);
+  const silenceTimerRef = useRef(null);
+  const latestSpokenTextRef = useRef('');
 
   // Keep refs synchronized
   useEffect(() => {
@@ -102,6 +104,7 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
         }
       }
       if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       if (typeIntervalRef.current) clearInterval(typeIntervalRef.current);
     };
   }, []);
@@ -275,15 +278,21 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
         scheduleListeningRestart(300);
       };
 
-      // Anchor to global window to avoid Chrome GC bug
+      // Anchor to global window to avoid Chrome GC bug & resume audio pipeline
       window._currentVoiceUtterance = utterance;
+      try {
+        window.speechSynthesis.cancel();
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
+      } catch (e) {}
       window.speechSynthesis.speak(utterance);
     } else {
       // If no speech synthesis supported, auto-resume after typing finishes
       setTimeout(() => {
         setIsSpeaking(false);
         isSpeakingRef.current = false;
-        scheduleListeningRestart(300);
+        scheduleListeningRestart(200);
       }, audioOutputSeconds * 1000);
     }
   };
@@ -338,18 +347,50 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
           }
         }
 
-        if (interim) {
-          // User is speaking - barge-in if agent is speaking
+        const candidateText = (finalized || interim).trim();
+
+        if (candidateText) {
+          latestSpokenTextRef.current = candidateText;
+
+          // Barge-in if agent is speaking
           if (isSpeakingRef.current) {
             handleInterrupt();
           }
-          setInterimText(interim);
+
+          if (interim) {
+            setInterimText(interim);
+          }
+
+          // Fast Silence Detector: trigger immediately when user pauses for 750ms
+          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = setTimeout(() => {
+            const textToSend = latestSpokenTextRef.current;
+            if (
+              textToSend &&
+              textToSend.length >= 2 &&
+              isCallActiveRef.current &&
+              !isThinkingRef.current &&
+              !isSpeakingRef.current
+            ) {
+              latestSpokenTextRef.current = '';
+              setInterimText('');
+              const durationSec = Math.max(1, Math.round((Date.now() - speechStartTimeRef.current) / 1000));
+              try {
+                recognition.stop();
+              } catch (e) {}
+              setIsListening(false);
+              isListeningRef.current = false;
+              sendMessage(textToSend, durationSec);
+            }
+          }, 750);
         }
 
+        // If browser provided final flag immediately, dispatch without waiting for silence timer
         if (finalized && finalized.trim()) {
+          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+          latestSpokenTextRef.current = '';
           setInterimText('');
           const durationSec = Math.max(1, Math.round((Date.now() - speechStartTimeRef.current) / 1000));
-          // Stop recognition temporarily while sending message to avoid hearing agent
           try {
             recognition.stop();
           } catch (e) {}
