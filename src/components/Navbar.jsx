@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, BarChart2, Radio, CheckCircle, AlertCircle, LogOut, Laptop, Cloud } from 'lucide-react';
+import { Mic, BarChart2, Radio, CheckCircle, AlertCircle, LogOut } from 'lucide-react';
 
 export default function Navbar({
   activeTab,
@@ -8,8 +8,6 @@ export default function Navbar({
   isConnected,
   user,
   onLogout,
-  backendMode,
-  onToggleBackendMode,
 }) {
   return (
     <nav className="navbar">
@@ -45,30 +43,10 @@ export default function Navbar({
       </div>
 
       <div className="nav-right">
-        {/* Backend Environment Switcher (Local vs Render Live) */}
-        <div className="backend-mode-pill" title={`Connected to: ${backendMode === 'live' ? 'Render Cloud (https://voiceagentbackend-klbc.onrender.com)' : 'Localhost (http://localhost:5000)'}`}>
-          <button
-            type="button"
-            className={`mode-toggle-btn ${backendMode === 'local' ? 'active' : ''}`}
-            onClick={() => onToggleBackendMode('local')}
-          >
-            <Laptop size={12} />
-            <span>Local</span>
-          </button>
-          <button
-            type="button"
-            className={`mode-toggle-btn ${backendMode === 'live' ? 'active' : ''}`}
-            onClick={() => onToggleBackendMode('live')}
-          >
-            <Cloud size={12} />
-            <span>Render</span>
-          </button>
-        </div>
-
         <div className="nav-status">
           {isConnected ? (
             <span className="status-indicator online">
-              <CheckCircle size={14} /> {backendMode === 'live' ? 'Render Live' : 'Local Connected'}
+              <CheckCircle size={14} /> Connected
             </span>
           ) : (
             <span className="status-indicator offline">

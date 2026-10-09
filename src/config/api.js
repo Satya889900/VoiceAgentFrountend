@@ -1,11 +1,9 @@
-// Backend Configuration: Dual-Mode (Local + Live Render)
+// Automatic Backend Configuration (Local Development & Render Production)
 export const RENDER_BACKEND_URL = 'https://voiceagentbackend-klbc.onrender.com';
 export const LOCAL_BACKEND_URL = 'http://localhost:5000';
 
-const BACKEND_STORAGE_KEY = 'va_backend_mode';
-
 /**
- * Check if running on localhost / loopback
+ * Check if running locally (localhost / 127.0.0.1)
  */
 export function isLocalhost() {
   if (typeof window === 'undefined') return true;
@@ -14,67 +12,26 @@ export function isLocalhost() {
 }
 
 /**
- * Get active mode: 'local' | 'live'
- */
-export function getBackendMode() {
-  // If explicitly set via env var
-  if (import.meta.env.VITE_BACKEND_MODE) {
-    return import.meta.env.VITE_BACKEND_MODE;
-  }
-
-  // Check saved preference in localStorage
-  if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem(BACKEND_STORAGE_KEY);
-    if (saved === 'local' || saved === 'live') {
-      return saved;
-    }
-  }
-
-  // If in production environment (e.g. deployed on Vercel/Netlify), default to Render
-  if (!isLocalhost() || import.meta.env.PROD) {
-    return 'live';
-  }
-
-  // Default to local when working on localhost
-  return 'local';
-}
-
-/**
- * Switch backend mode ('local' or 'live') and notify listeners
- */
-export function setBackendMode(mode) {
-  if (mode !== 'local' && mode !== 'live') return;
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(BACKEND_STORAGE_KEY, mode);
-    window.dispatchEvent(new CustomEvent('va:backend_mode_change', { detail: mode }));
-  }
-}
-
-/**
- * Returns the base HTTP URL for API requests
+ * Automatically determine backend base URL based on host environment
  */
 export function getApiBaseUrl() {
-  // Direct override via env variable
+  // 1. Explicit environment variable override
   if (import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL) {
     return (import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL).replace(/\/$/, '');
   }
 
-  const mode = getBackendMode();
-  if (mode === 'live') {
-    return RENDER_BACKEND_URL;
-  }
-
-  // When developing locally with Vite proxy
+  // 2. If running on localhost in development mode, use Vite proxy or local server
   if (isLocalhost() && import.meta.env.DEV) {
-    return ''; // relative path uses vite.config.js proxy to localhost:5000
+    return ''; // Relative path leverages vite.config.js proxy to localhost:5000
   }
 
-  return LOCAL_BACKEND_URL;
+  // 3. Otherwise, in production or live domains, automatically use Render cloud backend
+  return RENDER_BACKEND_URL;
 }
 
 /**
- * Build full API endpoint URL
- * @param {string} path e.g. '/api/health' or '/api/sessions/start'
+ * Build endpoint URL
+ * @param {string} path e.g. '/api/sessions/start'
  */
 export function getApiUrl(path) {
   const base = getApiBaseUrl();
@@ -83,24 +40,21 @@ export function getApiUrl(path) {
 }
 
 /**
- * Returns the WebSocket URL for live telemetry & voice stream
+ * Automatically return the appropriate WebSocket URL
  */
 export function getWsUrl() {
+  // 1. Explicit override
   if (import.meta.env.VITE_WS_URL) {
     return import.meta.env.VITE_WS_URL;
   }
 
-  const mode = getBackendMode();
-  if (mode === 'live') {
-    const renderHost = RENDER_BACKEND_URL.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    return `wss://${renderHost}/ws`;
-  }
-
-  // Local WebSocket
-  if (typeof window !== 'undefined') {
+  // 2. If running on localhost in development mode
+  if (isLocalhost() && import.meta.env.DEV) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     return `${protocol}//${window.location.hostname}:5000/ws`;
   }
 
-  return 'ws://localhost:5000/ws';
+  // 3. In production / live server, automatically connect securely to Render WS
+  const renderHost = RENDER_BACKEND_URL.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  return `wss://${renderHost}/ws`;
 }
