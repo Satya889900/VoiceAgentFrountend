@@ -12,7 +12,10 @@ import {
   Bot,
   User,
   Clock,
-  Coins
+  Coins,
+  Paperclip,
+  MessageSquare,
+  Activity
 } from 'lucide-react';
 import { getApiUrl } from '../config/api';
 
@@ -554,9 +557,14 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
       {/* Top Configuration Bar */}
       <div className="agent-config-card">
         <div className="config-header">
-          <div className="flex-center gap-2">
-            <Settings size={18} className="text-primary" />
-            <span className="font-semibold">Persona & System Prompt</span>
+          <div className="config-title-group">
+            <div className="config-icon-badge">
+              <Settings size={18} />
+            </div>
+            <div>
+              <h3>Persona & System Prompt</h3>
+              <p className="config-sub">Select the agent persona to use for the conversation.</p>
+            </div>
           </div>
           {session?.status === 'active' && (
             <span className="call-live-tag">
@@ -567,7 +575,6 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
 
         <div className="config-body">
           <div className="form-group">
-            <label>Agent Persona</label>
             <select
               value={selectedPersona}
               onChange={(e) => setSelectedPersona(e.target.value)}
@@ -584,7 +591,6 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
 
           {selectedPersona === 'custom' && (
             <div className="form-group full-width">
-              <label>Custom System Instruction</label>
               <input
                 type="text"
                 placeholder="e.g. You are a medical clinic booking assistant..."
@@ -615,30 +621,31 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
               }`}
             >
               <div className="orb-core">
-                {isSpeaking ? (
-                  <Volume2 size={44} className="orb-icon text-accent" />
-                ) : isListening ? (
-                  <Mic size={44} className="orb-icon text-danger" />
-                ) : (
-                  <Sparkles size={44} className="orb-icon text-primary" />
-                )}
+                <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg" className="orb-icon">
+                  <rect x="9" y="18" width="2.8" height="8" rx="1.4" fill="white" />
+                  <rect x="14" y="13" width="2.8" height="18" rx="1.4" fill="white" />
+                  <rect x="19" y="8" width="2.8" height="28" rx="1.4" fill="white" />
+                  <rect x="24" y="15" width="2.8" height="14" rx="1.4" fill="white" />
+                  <path d="M32 9 C32 12.5 29 13.5 29 13.5 C32 13.5 32 17 32 17 C32 13.5 35 13.5 35 13.5 C32 13.5 32 9 32 9 Z" fill="white" />
+                </svg>
               </div>
               <div className="orb-ring ring-1" />
               <div className="orb-ring ring-2" />
             </div>
 
             <div className="orb-status-text">
-              {isSpeaking ? (
-                <span className="status-highlight speaking">Agent is speaking & writing...</span>
-              ) : isListening ? (
-                <span className="status-highlight listening">Listening continuously... Speak anytime</span>
-              ) : isThinking ? (
-                <span className="status-highlight thinking">Gemini is thinking...</span>
-              ) : session?.status === 'active' ? (
-                <span className="status-highlight ready">Call connected. Microphone is active!</span>
-              ) : (
-                <span className="status-highlight idle">Call ended. Start a call to begin.</span>
-              )}
+              <h3 className="orb-main-heading">
+                {isSpeaking
+                  ? 'Agent is speaking...'
+                  : isListening
+                  ? 'Listening... Speak anytime'
+                  : isThinking
+                  ? 'Gemini is thinking...'
+                  : session?.status === 'active'
+                  ? 'Call connected. Microphone active!'
+                  : 'Call ended. Start a call to begin.'}
+              </h3>
+              <p className="orb-sub-text">Have a natural voice conversation with Gemini AI.</p>
             </div>
           </div>
 
@@ -657,7 +664,7 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
                   </>
                 ) : (
                   <>
-                    <PhoneCall size={20} />
+                    <PhoneCall size={18} />
                     <span>Start Voice Call</span>
                   </>
                 )}
@@ -669,7 +676,7 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
                   onClick={toggleMute}
                   title={isMuted ? 'Unmute microphone' : 'Mute microphone'}
                 >
-                  {isMuted ? <MicOff size={22} /> : <Mic size={22} />}
+                  {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
                   <span>{isMuted ? 'Muted' : 'Live Mic'}</span>
                 </button>
 
@@ -679,13 +686,13 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
                     onClick={handleInterrupt}
                     title="Interrupt agent speech (Barge-in)"
                   >
-                    <Square size={20} />
+                    <Square size={18} />
                     <span>Interrupt</span>
                   </button>
                 )}
 
                 <button className="ctrl-btn btn-end" onClick={handleEndCall} title="End Call">
-                  <PhoneOff size={22} />
+                  <PhoneOff size={20} />
                   <span>End</span>
                 </button>
               </div>
@@ -693,21 +700,19 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
           </div>
 
           {/* Quick Metrics Bar for active call */}
-          {session && (
-            <div className="call-mini-metrics">
-              <div className="mini-stat">
-                <Clock size={14} />
-                <span>{session.durationSeconds || callDuration}s</span>
-              </div>
-              <div className="mini-stat">
-                <Coins size={14} />
-                <span>${(session.cost?.totalCost || 0).toFixed(5)}</span>
-              </div>
-              <div className="mini-stat">
-                <span>Tokens: {session.usage?.totalTokens || 0}</span>
-              </div>
+          <div className="call-mini-metrics">
+            <div className="mini-stat">
+              <Clock size={13} />
+              <span>{callDuration || session?.durationSeconds || 0}s</span>
             </div>
-          )}
+            <div className="mini-stat">
+              <Activity size={13} />
+              <span>${(session?.cost?.totalCost || 0).toFixed(5)}</span>
+            </div>
+            <div className="mini-stat">
+              <span>Tokens: {session?.usage?.totalTokens || 0}</span>
+            </div>
+          </div>
 
           {error && <div className="error-banner">{error}</div>}
         </div>
@@ -715,13 +720,18 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
         {/* Right Side: Live Interaction Transcript with Agent Writing */}
         <div className="transcript-panel">
           <div className="panel-header">
-            <div className="flex-center gap-2">
-              <h3>Live Conversation Transcript</h3>
-              {session?.status === 'active' && (
-                <span className="live-call-status">● Continuous Hands-Free</span>
-              )}
+            <div className="panel-title-group">
+              <div className="panel-icon-badge">
+                <MessageSquare size={18} />
+              </div>
+              <div>
+                <h3>Live Conversation Transcript</h3>
+                <p className="panel-sub">Real-time conversation with Gemini Voice Agent</p>
+              </div>
             </div>
-            <span className="badge-turns">{transcript.length} turns</span>
+            <span className="badge-turns">
+              <span className="turns-dot" /> {transcript.length} turns
+            </span>
           </div>
 
           <div className="transcript-scroll">
@@ -757,9 +767,9 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
                         <span className="writing-cursor">|</span>
                       )}
                     </p>
-                    {msg.audioSeconds && (
-                      <span className="bubble-audio-tag">🎙️ ~{msg.audioSeconds}s speech</span>
-                    )}
+                    <span className="bubble-audio-tag">
+                      🔊 {msg.audioSeconds || 0}s speech
+                    </span>
                   </div>
                 </div>
               ))
@@ -796,15 +806,14 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
             <div ref={transcriptEndRef} />
           </div>
 
-          {/* Text input fallback */}
+          {/* Text input with attachment icon and send button */}
           <form className="message-form" onSubmit={handleManualSubmit}>
+            <button type="button" className="attach-btn" title="Attach file">
+              <Paperclip size={18} />
+            </button>
             <input
               type="text"
-              placeholder={
-                session?.status === 'active'
-                  ? 'Speak freely or type a message here...'
-                  : 'Start a call to chat...'
-              }
+              placeholder="Start a call to chat..."
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
               disabled={!session || session.status !== 'active'}
@@ -816,7 +825,7 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
               className="send-btn"
               title="Send message"
             >
-              {isThinking ? <span className="spinner mini-spinner" /> : <Send size={18} />}
+              {isThinking ? <span className="spinner mini-spinner" /> : <Send size={16} />}
             </button>
           </form>
         </div>
