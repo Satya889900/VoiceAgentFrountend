@@ -4,6 +4,7 @@ import VoiceAgent from './components/VoiceAgent';
 import UsageDashboard from './components/UsageDashboard';
 import Login from './components/Login';
 import { Radio } from 'lucide-react';
+import { getApiUrl, getWsUrl, getBackendMode, setBackendMode } from './config/api';
 import './App.css';
 
 function App() {
@@ -12,6 +13,7 @@ function App() {
     return saved ? JSON.parse(saved) : null;
   });
 
+  const [backendMode, setModeState] = useState(() => getBackendMode());
   const [initialLoading, setInitialLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('agent');
   const [metrics, setMetrics] = useState({
@@ -44,14 +46,28 @@ function App() {
     }
   };
 
+  const handleToggleBackendMode = (newMode) => {
+    if (newMode === backendMode) return;
+    setBackendMode(newMode);
+    setModeState(newMode);
+    setIsConnected(false);
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+    // Refetch data from the newly selected backend
+    setTimeout(() => {
+      fetchData(true);
+    }, 100);
+  };
+
   // Fetch backend telemetry
   const fetchData = async (showRefreshIndicator = false) => {
     if (showRefreshIndicator) setIsRefreshing(true);
     try {
       const [resMetrics, resSessions, resPersonas] = await Promise.all([
-        fetch('/api/metrics'),
-        fetch('/api/sessions'),
-        fetch('/api/personas'),
+        fetch(getApiUrl('/api/metrics')),
+        fetch(getApiUrl('/api/sessions')),
+        fetch(getApiUrl('/api/personas')),
       ]);
 
       if (resMetrics.ok) {
@@ -78,7 +94,7 @@ function App() {
     }
   };
 
-  // Setup WebSocket + polling (only when logged in)
+  // Setup WebSocket + polling (only when logged in and reacts to backendMode)
   useEffect(() => {
     if (!user) {
       setInitialLoading(false);
@@ -88,8 +104,7 @@ function App() {
     fetchData();
 
     const connectWebSocket = () => {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.hostname}:5000/ws`;
+      const wsUrl = getWsUrl();
 
       try {
         const ws = new WebSocket(wsUrl);
@@ -129,7 +144,7 @@ function App() {
       clearInterval(pollInterval);
       if (wsRef.current) wsRef.current.close();
     };
-  }, [user]);
+  }, [user, backendMode]);
 
   const handleSessionUpdate = () => {
     fetchData(false);
@@ -145,7 +160,9 @@ function App() {
         <div className="loading-bar-wrap">
           <div className="loading-bar" />
         </div>
-        <span className="loading-text">INITIALIZING VOICE AGENT STUDIO...</span>
+        <span className="loading-text">
+          CONNECTING TO {backendMode === 'live' ? 'RENDER CLOUD' : 'LOCAL'} BACKEND...
+        </span>
       </div>
     );
   }
@@ -164,6 +181,8 @@ function App() {
         isConnected={isConnected}
         user={user}
         onLogout={handleLogout}
+        backendMode={backendMode}
+        onToggleBackendMode={handleToggleBackendMode}
       />
 
       <main className="main-content">

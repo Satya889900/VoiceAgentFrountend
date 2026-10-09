@@ -14,6 +14,7 @@ import {
   Clock,
   Coins
 } from 'lucide-react';
+import { getApiUrl } from '../config/api';
 
 export default function VoiceAgent({ personas = [], onSessionUpdate }) {
   const [session, setSession] = useState(null);
@@ -136,7 +137,7 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
     setIsConnecting(true);
 
     try {
-      const res = await fetch('/api/sessions/start', {
+      const res = await fetch(getApiUrl('/api/sessions/start'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -173,7 +174,7 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
     if (!activeId) return;
 
     try {
-      const res = await fetch(`/api/sessions/${activeId}/end`, {
+      const res = await fetch(getApiUrl(`/api/sessions/${activeId}/end`), {
         method: 'POST',
       });
       if (res.ok) {
@@ -431,7 +432,7 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
     isThinkingRef.current = true;
 
     try {
-      const res = await fetch(`/api/sessions/${activeSession.id}/message`, {
+      const res = await fetch(getApiUrl(`/api/sessions/${activeSession.id}/message`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
