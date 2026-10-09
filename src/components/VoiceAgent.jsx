@@ -375,14 +375,23 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
       }
     }
 
+    // Detect mobile — Android Chrome stops recognition earlier, needs shorter silence window
+    const isMobile = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+    const SILENCE_DELAY = isMobile ? 900 : 1600;
+
     try {
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'en-US'; // English script — works for Hinglish too
+      // Mobile Chrome benefit: maxAlternatives=1 is faster
+      recognition.maxAlternatives = 1;
 
       speechStartTimeRef.current = Date.now();
-      accumulatedFinalsRef.current = ''; // Fresh buffer for new listening session
+      // Only reset buffer if it's already empty (don't wipe unsent text on mobile restart)
+      if (!accumulatedFinalsRef.current.trim()) {
+        accumulatedFinalsRef.current = '';
+      }
 
       recognition.onstart = () => {
         setIsListening(true);
@@ -417,7 +426,6 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
         // Accumulate finals into buffer — NEVER send just a partial chunk
         if (newFinals.trim()) {
           accumulatedFinalsRef.current = (accumulatedFinalsRef.current + ' ' + newFinals).trim();
-          // Update interim to show accumulated text while they keep speaking
           setInterimText(accumulatedFinalsRef.current + (interim ? ' ' + interim : ''));
         } else if (interim) {
           setInterimText((accumulatedFinalsRef.current + ' ' + interim).trim());
@@ -426,7 +434,7 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
         // Reset silence timer on any speech activity
         if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
 
-        // Only fire after 1800ms of real silence — enough for natural pauses in speech
+        // Fire after silence period (shorter on mobile — Chrome stops recognition faster)
         const candidateText = (accumulatedFinalsRef.current || interim).trim();
         if (candidateText) {
           silenceTimerRef.current = setTimeout(() => {
@@ -434,7 +442,7 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
             if (finalCandidate) {
               handleFinalUtterance(finalCandidate);
             }
-          }, 1800);
+          }, SILENCE_DELAY);
         }
 
         if (interim) {
@@ -446,11 +454,34 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
         if (event.error !== 'no-speech' && event.error !== 'aborted') {
           console.warn('SpeechRecognition error:', event.error);
         }
+        // On mobile, network errors are common — clear state cleanly
+        if (event.error === 'network' || event.error === 'service-not-allowed') {
+          setIsListening(false);
+          isListeningRef.current = false;
+        }
       };
 
       recognition.onend = () => {
         setIsListening(false);
         isListeningRef.current = false;
+
+        // *** KEY MOBILE FIX ***
+        // Android Chrome fires onend BEFORE our silence timer fires.
+        // If there's accumulated text, send it NOW before restarting.
+        const pendingText = accumulatedFinalsRef.current.trim() || latestSpokenTextRef.current.trim();
+        if (
+          pendingText &&
+          isCallActiveRef.current &&
+          !isSendingRef.current &&
+          !isThinkingRef.current &&
+          !isSpeakingRef.current
+        ) {
+          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+          // Small delay so the engine fully releases the mic before we send
+          setTimeout(() => handleFinalUtterance(pendingText), 80);
+          return; // handleFinalUtterance → stopListening → sendMessage will handle restart
+        }
+
         // Keep-alive loop: restart only if call is active and everything is completely idle
         if (
           isCallActiveRef.current &&
@@ -459,7 +490,7 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
           !isThinkingRef.current &&
           !isSendingRef.current
         ) {
-          scheduleListeningRestart(200);
+          scheduleListeningRestart(250);
         }
       };
 
