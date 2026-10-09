@@ -17,7 +17,7 @@ import {
 
 export default function VoiceAgent({ personas = [], onSessionUpdate }) {
   const [session, setSession] = useState(null);
-  const [selectedPersona, setSelectedPersona] = useState('customer_support');
+  const [selectedPersona, setSelectedPersona] = useState('gemini_assistant');
   const [customPrompt, setCustomPrompt] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
