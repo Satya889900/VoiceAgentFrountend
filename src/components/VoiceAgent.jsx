@@ -375,8 +375,7 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
-      // Support Hindi + English — catches both language patterns
-      recognition.lang = 'hi-IN';  // Set to Hindi; browser still captures English words in Hindi mode
+      recognition.lang = 'en-US'; // English script — works for Hinglish too
 
       speechStartTimeRef.current = Date.now();
       accumulatedFinalsRef.current = ''; // Fresh buffer for new listening session
