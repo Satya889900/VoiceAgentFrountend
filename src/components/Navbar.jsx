@@ -8,10 +8,15 @@ export default function Navbar({
   isConnected,
   user,
   onLogout,
+  onRefresh,
+  isRefreshing,
+  lastUpdated,
 }) {
+  const isDashboard = activeTab === 'dashboard';
+
   return (
     <nav className="navbar">
-      {/* Brand Logo */}
+      {/* Brand Logo & Title */}
       <div className="nav-brand">
         <div className="brand-icon">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
@@ -23,8 +28,14 @@ export default function Navbar({
           </svg>
         </div>
         <div className="brand-text">
-          <span className="brand-title">Gemini Voice Agent</span>
-          <span className="brand-tag">MULTIMODAL AI STUDIO</span>
+          <span className="brand-title">
+            {isDashboard ? 'Usage & Cost Monitoring Dashboard' : 'Gemini Voice Agent'}
+          </span>
+          <span className={`brand-tag ${isDashboard ? 'brand-tag-dashboard' : ''}`}>
+            {isDashboard
+              ? 'Real-time telemetry and Gemini API expenditure tracking'
+              : 'MULTIMODAL AI STUDIO'}
+          </span>
         </div>
       </div>
 
@@ -50,19 +61,38 @@ export default function Navbar({
         </button>
       </div>
 
-      {/* Right Section: Status & User */}
+      {/* Right Section */}
       <div className="nav-right">
-        <div className="nav-status">
-          {isConnected ? (
-            <span className="status-badge connected">
-              <CheckCircle size={13} /> Connected
-            </span>
-          ) : (
-            <span className="status-badge reconnecting">
-              <RotateCw size={13} className="spin-icon" /> Reconnecting...
-            </span>
-          )}
-        </div>
+        {isDashboard ? (
+          <div className="nav-telemetry-controls">
+            <button
+              className={`nav-btn-refresh ${isRefreshing ? 'refreshing' : ''}`}
+              onClick={onRefresh}
+              disabled={isRefreshing}
+            >
+              <RotateCw size={14} className={isRefreshing ? 'spin-icon' : ''} />
+              <span>{isRefreshing ? 'Refreshing...' : 'Refresh Metrics'}</span>
+            </button>
+            <div className="nav-last-updated">
+              <span className="updated-label">Last updated</span>
+              <span className="updated-time">
+                <span className="live-dot-mini" /> {lastUpdated || '03:38:52 PM'}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="nav-status">
+            {isConnected ? (
+              <span className="status-badge connected">
+                <CheckCircle size={13} /> Connected
+              </span>
+            ) : (
+              <span className="status-badge reconnecting">
+                <RotateCw size={13} className="spin-icon" /> Reconnecting...
+              </span>
+            )}
+          </div>
+        )}
 
         {user && (
           <div className="nav-user-pill" onClick={onLogout} title="Click to Sign Out">

@@ -30,6 +30,9 @@ function App() {
   const [personas, setPersonas] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(() =>
+    new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  );
   const wsRef = useRef(null);
 
   const handleLogin = (loggedInUser) => {
@@ -68,6 +71,9 @@ function App() {
         setPersonas(p.personas || []);
       }
       setIsConnected(true);
+      setLastUpdated(
+        new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      );
     } catch (err) {
       console.warn('Backend fetch error:', err.message);
       setIsConnected(false);
@@ -166,6 +172,9 @@ function App() {
         isConnected={isConnected}
         user={user}
         onLogout={handleLogout}
+        onRefresh={() => fetchData(true)}
+        isRefreshing={isRefreshing}
+        lastUpdated={lastUpdated}
       />
 
       <main className="main-content">
