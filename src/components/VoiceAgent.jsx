@@ -34,6 +34,10 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
   const [isMuted, setIsMuted] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
 
+  // Browser speech support check (Chrome/Edge = full support; Firefox/iOS Safari = limited)
+  const speechSupported = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+  const isHttps = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+
   // Mutable refs to prevent stale closure issues in speech callbacks
   const sessionRef = useRef(null);
   const isCallActiveRef = useRef(false);
@@ -572,6 +576,18 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
 
   return (
     <div className="voice-agent-container">
+      {/* Browser / HTTPS compatibility warnings */}
+      {!speechSupported && (
+        <div className="error-banner" style={{ marginTop: 0 }}>
+          ⚠️ <strong>Voice not supported</strong> in this browser. Please use <strong>Chrome</strong> or <strong>Edge</strong> on desktop/Android for voice calls. You can still use text chat below.
+        </div>
+      )}
+      {speechSupported && !isHttps && (
+        <div className="error-banner" style={{ marginTop: 0, borderColor: 'rgba(245,158,11,0.4)', background: 'rgba(245,158,11,0.1)', color: '#fcd34d' }}>
+          ⚠️ Microphone requires <strong>HTTPS</strong>. Voice may not work on this HTTP connection. Use the live Render URL for full support.
+        </div>
+      )}
+
       {/* Top Configuration Bar */}
       <div className="agent-config-card">
         <div className="config-header">

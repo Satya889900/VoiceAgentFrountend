@@ -2194,3 +2194,73 @@ button:active:not(:disabled) {
 }
 
 
+/* ===========================
+   MOBILE / PHONE RESPONSIVE FIXES
+   Full audit — phones (320-480px) + tablets (481-1024px)
+   =========================== */
+
+/* Global touch improvements */
+* { -webkit-tap-highlight-color: transparent; }
+button { touch-action: manipulation; }
+
+/* iOS safe-area (notch / home indicator) */
+.app-shell { padding-bottom: env(safe-area-inset-bottom); }
+.navbar { padding-top: max(env(safe-area-inset-top), 0px); }
+
+/* ---- Tablet: up to 1024px ---- */
+@media (max-width: 1024px) {
+  .studio-layout { grid-template-columns: 1fr; }
+  .transcript-panel { height: 420px; }
+  .voice-orb-card { min-height: auto; padding: 28px 20px 18px; }
+}
+
+/* ---- Phone: up to 768px ---- */
+@media (max-width: 768px) {
+  .navbar { padding: 0 12px; height: 56px; gap: 8px; }
+  .brand-icon { width: 36px; height: 36px; border-radius: 10px; }
+  .brand-title { font-size: 0.92rem; }
+  .main-content { padding: 12px 12px 28px; }
+
+  .voice-orb-card { min-height: auto; padding: 22px 16px 16px; border-radius: 14px; }
+  .voice-orb { width: 130px; height: 130px; margin: 6px 0 12px; }
+  .orb-core { width: 100px; height: 100px; }
+  .orb-icon { width: 34px; height: 34px; }
+  .orb-main-heading { font-size: 0.95rem; }
+  .orb-sub-text { font-size: 0.75rem; }
+
+  .call-btn.btn-start { height: 52px; font-size: 1rem; }
+  .ctrl-btn { padding: 10px 14px; min-width: 64px; font-size: 0.7rem; }
+
+  .transcript-panel { height: 380px; border-radius: 14px; }
+  .chat-bubble-row { max-width: 92%; }
+  .bubble-content { padding: 10px 14px; min-width: 100px; }
+  .bubble-text { font-size: 0.88rem; word-break: break-word; }
+
+  /* font-size: 16px prevents iOS auto-zoom on input focus */
+  .text-input-field { font-size: 16px; }
+  .message-form { margin: 10px 12px 14px; padding: 5px 6px 5px 12px; }
+
+  .call-mini-metrics { font-size: 0.72rem; margin-top: 16px; padding-top: 12px; }
+  .agent-config-card { padding: 14px 16px; border-radius: 14px; }
+  .transcript-scroll { padding: 16px 14px; gap: 12px; }
+  .panel-header { padding: 14px 16px; }
+}
+
+/* ---- Small Phone: up to 480px ---- */
+@media (max-width: 480px) {
+  .nav-tabs .tab-btn span { display: none; }
+  .tab-btn { padding: 8px 10px; }
+
+  .voice-orb { width: 110px; height: 110px; }
+  .orb-core { width: 84px; height: 84px; }
+  .orb-icon { width: 28px; height: 28px; }
+
+  .active-controls { justify-content: space-evenly; }
+  .ctrl-btn { min-width: 58px; padding: 9px 10px; }
+
+  .transcript-panel { height: 340px; }
+  .chat-bubble-row { max-width: 98%; }
+  .bubble-meta { flex-direction: column; gap: 2px; }
+  .call-live-tag { font-size: 0.7rem; padding: 4px 10px; }
+  .error-banner { font-size: 0.74rem; padding: 7px 10px; }
+}
