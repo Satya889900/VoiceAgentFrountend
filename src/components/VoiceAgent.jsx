@@ -50,6 +50,7 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
   const speechStartTimeRef = useRef(null);
   const silenceTimerRef = useRef(null);
   const latestSpokenTextRef = useRef('');
+  const accumulatedFinalsRef = useRef(''); // Buffer for ALL final chunks in one utterance
   const isSendingRef = useRef(false);
   const lastSentTextRef = useRef('');
   const lastSentTimeRef = useRef(0);
@@ -320,11 +321,13 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
       Date.now() - lastSentTimeRef.current < 3500
     ) {
       console.log('Suppressed duplicate utterance:', clean);
+      accumulatedFinalsRef.current = '';
       return;
     }
 
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     latestSpokenTextRef.current = '';
+    accumulatedFinalsRef.current = ''; // Reset buffer after sending
     setInterimText('');
 
     // Force stop recognition before sending to avoid microphone capturing trailing frames
@@ -354,8 +357,13 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
       return;
     }
 
-    // Abort any existing instance cleanly
-    if (recognitionRef.current) {
+    // If already running, don't restart — let it keep going
+    if (isListeningRef.current && recognitionRef.current) {
+      return;
+    }
+
+    // Abort stale instance cleanly only if NOT currently listening
+    if (recognitionRef.current && !isListeningRef.current) {
       try {
         recognitionRef.current.abort();
       } catch (e) {
@@ -367,9 +375,11 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.lang = 'en-US';
+      // Support Hindi + English — catches both language patterns
+      recognition.lang = 'hi-IN';  // Set to Hindi; browser still captures English words in Hindi mode
 
       speechStartTimeRef.current = Date.now();
+      accumulatedFinalsRef.current = ''; // Fresh buffer for new listening session
 
       recognition.onstart = () => {
         setIsListening(true);
@@ -384,19 +394,16 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
         }
 
         let interim = '';
-        let finalized = '';
+        let newFinals = '';
 
         for (let i = event.resultIndex; i < event.results.length; ++i) {
           const item = event.results[i];
           if (item.isFinal) {
-            finalized += item[0].transcript;
+            newFinals += item[0].transcript + ' ';
           } else {
             interim += item[0].transcript;
           }
         }
-
-        const candidateText = (finalized || interim).trim();
-        if (!candidateText) return;
 
         // User spoke while agent was active -> barge-in
         if (isSpeakingRef.current) {
@@ -404,23 +411,32 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
           return;
         }
 
-        if (interim) {
-          setInterimText(interim);
+        // Accumulate finals into buffer — NEVER send just a partial chunk
+        if (newFinals.trim()) {
+          accumulatedFinalsRef.current = (accumulatedFinalsRef.current + ' ' + newFinals).trim();
+          // Update interim to show accumulated text while they keep speaking
+          setInterimText(accumulatedFinalsRef.current + (interim ? ' ' + interim : ''));
+        } else if (interim) {
+          setInterimText((accumulatedFinalsRef.current + ' ' + interim).trim());
         }
 
-        // Path A: Browser marked chunk as final -> process immediately
-        if (finalized && finalized.trim()) {
-          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-          handleFinalUtterance(finalized.trim());
-          return;
-        }
-
-        // Path B: Interim speech -> wait for 800ms natural silence pause
-        latestSpokenTextRef.current = candidateText;
+        // Reset silence timer on any speech activity
         if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-        silenceTimerRef.current = setTimeout(() => {
-          handleFinalUtterance(latestSpokenTextRef.current);
-        }, 800);
+
+        // Only fire after 1800ms of real silence — enough for natural pauses in speech
+        const candidateText = (accumulatedFinalsRef.current || interim).trim();
+        if (candidateText) {
+          silenceTimerRef.current = setTimeout(() => {
+            const finalCandidate = accumulatedFinalsRef.current.trim() || latestSpokenTextRef.current.trim();
+            if (finalCandidate) {
+              handleFinalUtterance(finalCandidate);
+            }
+          }, 1800);
+        }
+
+        if (interim) {
+          latestSpokenTextRef.current = (accumulatedFinalsRef.current + ' ' + interim).trim();
+        }
       };
 
       recognition.onerror = (event) => {
@@ -455,6 +471,7 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
 
   const stopListening = () => {
     if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     if (recognitionRef.current) {
       try {
         recognitionRef.current.abort();
@@ -465,6 +482,8 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
     setIsListening(false);
     isListeningRef.current = false;
     setInterimText('');
+    latestSpokenTextRef.current = '';
+    // Don't reset accumulatedFinalsRef here — it will be sent via handleFinalUtterance
   };
 
   const toggleMute = () => {
