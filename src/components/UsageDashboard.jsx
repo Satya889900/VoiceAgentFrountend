@@ -8,7 +8,6 @@ import {
   FileText,
   Database,
   Copy,
-  MoreVertical,
   ExternalLink,
   MessageSquare,
   Mic,
@@ -246,17 +245,12 @@ export default function UsageDashboard({ metrics, sessions = [], onRefresh, isRe
                       <span className="cost-tag">${(s.cost?.totalCost || 0).toFixed(5)}</span>
                     </td>
                     <td>
-                      <div className="actions-cell">
-                        <button
-                          className="btn-inspect"
-                          onClick={() => setSelectedSession(s)}
-                        >
-                          <ExternalLink size={13} /> View Details
-                        </button>
-                        <button className="btn-more-options" title="More options">
-                          <MoreVertical size={14} />
-                        </button>
-                      </div>
+                      <button
+                        className="btn-inspect"
+                        onClick={() => setSelectedSession(s)}
+                      >
+                        <ExternalLink size={13} /> View Details
+                      </button>
                     </td>
                   </tr>
                 ))}
