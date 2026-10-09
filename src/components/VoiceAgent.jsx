@@ -28,6 +28,7 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
   const [callDuration, setCallDuration] = useState(0);
   const [error, setError] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
 
   // Mutable refs to prevent stale closure issues in speech callbacks
   const sessionRef = useRef(null);
@@ -132,6 +133,7 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
     setError(null);
     setIsMuted(false);
     isMutedRef.current = false;
+    setIsConnecting(true);
 
     try {
       const res = await fetch('/api/sessions/start', {
@@ -156,6 +158,8 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
       startListening();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setIsConnecting(false);
     }
   };
 
@@ -563,9 +567,22 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
           {/* Call Controls */}
           <div className="call-actions">
             {!session || session.status !== 'active' ? (
-              <button className="call-btn btn-start" onClick={handleStartCall}>
-                <PhoneCall size={20} />
-                <span>Start Voice Call</span>
+              <button
+                className={`call-btn btn-start ${isConnecting ? 'loading' : ''}`}
+                onClick={handleStartCall}
+                disabled={isConnecting}
+              >
+                {isConnecting ? (
+                  <>
+                    <span className="spinner" />
+                    <span>Connecting Call...</span>
+                  </>
+                ) : (
+                  <>
+                    <PhoneCall size={20} />
+                    <span>Start Voice Call</span>
+                  </>
+                )}
               </button>
             ) : (
               <div className="active-controls">
@@ -717,10 +734,11 @@ export default function VoiceAgent({ personas = [], onSessionUpdate }) {
             />
             <button
               type="submit"
-              disabled={!session || session.status !== 'active' || !textInput.trim()}
+              disabled={!session || session.status !== 'active' || !textInput.trim() || isThinking}
               className="send-btn"
+              title="Send message"
             >
-              <Send size={18} />
+              {isThinking ? <span className="spinner mini-spinner" /> : <Send size={18} />}
             </button>
           </form>
         </div>

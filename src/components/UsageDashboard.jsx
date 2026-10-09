@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Activity,
   CheckCircle2,
@@ -12,11 +12,21 @@ import {
   Calendar,
   Sparkles,
   Bot,
-  User
+  User,
+  RotateCw
 } from 'lucide-react';
 
-export default function UsageDashboard({ metrics, sessions = [], onRefresh }) {
+export default function UsageDashboard({ metrics, sessions = [], onRefresh, isRefreshing = false }) {
   const [selectedSession, setSelectedSession] = useState(null);
+
+  // Close modal on ESC key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setSelectedSession(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Format seconds to readable duration
   const formatDuration = (totalSeconds = 0) => {
@@ -37,8 +47,13 @@ export default function UsageDashboard({ metrics, sessions = [], onRefresh }) {
           <h2>Usage & Cost Monitoring Dashboard</h2>
           <p className="subtitle">Real-time telemetry and Gemini API expenditure tracker</p>
         </div>
-        <button className="btn-refresh" onClick={onRefresh}>
-          Refresh Metrics
+        <button
+          className={`btn-refresh ${isRefreshing ? 'refreshing' : ''}`}
+          onClick={onRefresh}
+          disabled={isRefreshing}
+        >
+          <RotateCw size={14} className={isRefreshing ? 'icon-spin' : ''} />
+          <span>{isRefreshing ? 'Refreshing...' : 'Refresh Metrics'}</span>
         </button>
       </div>
 
@@ -48,7 +63,7 @@ export default function UsageDashboard({ metrics, sessions = [], onRefresh }) {
           <div className="metric-top">
             <span className="metric-title">Active Sessions</span>
             <div className="metric-icon-wrap bg-emerald">
-              <Activity size={20} className="text-emerald" />
+              <Activity size={18} className="text-emerald" />
             </div>
           </div>
           <div className="metric-value">
@@ -62,7 +77,7 @@ export default function UsageDashboard({ metrics, sessions = [], onRefresh }) {
           <div className="metric-top">
             <span className="metric-title">Total Sessions</span>
             <div className="metric-icon-wrap bg-blue">
-              <CheckCircle2 size={20} className="text-blue" />
+              <CheckCircle2 size={18} className="text-blue" />
             </div>
           </div>
           <div className="metric-value">{metrics?.totalSessions || 0}</div>
@@ -73,7 +88,7 @@ export default function UsageDashboard({ metrics, sessions = [], onRefresh }) {
           <div className="metric-top">
             <span className="metric-title">Cumulative Duration</span>
             <div className="metric-icon-wrap bg-purple">
-              <Clock size={20} className="text-purple" />
+              <Clock size={18} className="text-purple" />
             </div>
           </div>
           <div className="metric-value">{formatDuration(metrics?.totalDurationSeconds)}</div>
@@ -84,7 +99,7 @@ export default function UsageDashboard({ metrics, sessions = [], onRefresh }) {
           <div className="metric-top">
             <span className="metric-title">Total Tokens</span>
             <div className="metric-icon-wrap bg-indigo">
-              <Layers size={20} className="text-indigo" />
+              <Layers size={18} className="text-indigo" />
             </div>
           </div>
           <div className="metric-value">{(metrics?.totalTokens || 0).toLocaleString()}</div>
@@ -97,7 +112,7 @@ export default function UsageDashboard({ metrics, sessions = [], onRefresh }) {
           <div className="metric-top">
             <span className="metric-title">Running Cost</span>
             <div className="metric-icon-wrap bg-amber">
-              <DollarSign size={20} className="text-amber" />
+              <DollarSign size={18} className="text-amber" />
             </div>
           </div>
           <div className="metric-value cost-highlight">
@@ -110,7 +125,7 @@ export default function UsageDashboard({ metrics, sessions = [], onRefresh }) {
       {/* Pricing Model Info Box */}
       <div className="pricing-box">
         <div className="pricing-title">
-          <Info size={18} className="text-primary" />
+          <Info size={16} className="text-primary" />
           <span>Gemini 2.0 Flash Pricing Reference</span>
         </div>
         <div className="pricing-chips">
@@ -180,7 +195,7 @@ export default function UsageDashboard({ metrics, sessions = [], onRefresh }) {
                         className="btn-inspect"
                         onClick={() => setSelectedSession(s)}
                       >
-                        <ExternalLink size={14} /> View Details
+                        <ExternalLink size={13} /> View Details
                       </button>
                     </td>
                   </tr>
@@ -200,8 +215,8 @@ export default function UsageDashboard({ metrics, sessions = [], onRefresh }) {
                 <h3>Session Details</h3>
                 <code className="modal-id">{selectedSession.id}</code>
               </div>
-              <button className="btn-close" onClick={() => setSelectedSession(null)}>
-                <X size={20} />
+              <button className="btn-close" onClick={() => setSelectedSession(null)} aria-label="Close modal">
+                <X size={18} />
               </button>
             </div>
 
@@ -264,7 +279,7 @@ export default function UsageDashboard({ metrics, sessions = [], onRefresh }) {
                       <div key={idx} className={`transcript-turn ${t.role}`}>
                         <div className="turn-header">
                           <span className="turn-role">
-                            {t.role === 'user' ? <User size={14} /> : <Bot size={14} />}
+                            {t.role === 'user' ? <User size={13} /> : <Bot size={13} />}
                             {t.role === 'user' ? 'User' : 'Gemini Agent'}
                           </span>
                           <span className="turn-time">

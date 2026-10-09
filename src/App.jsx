@@ -3,15 +3,16 @@ import Navbar from './components/Navbar';
 import VoiceAgent from './components/VoiceAgent';
 import UsageDashboard from './components/UsageDashboard';
 import Login from './components/Login';
+import { Radio } from 'lucide-react';
 import './App.css';
 
 function App() {
   const [user, setUser] = useState(() => {
-    // Persist login across page refresh using sessionStorage
     const saved = sessionStorage.getItem('va_user');
     return saved ? JSON.parse(saved) : null;
   });
 
+  const [initialLoading, setInitialLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('agent');
   const [metrics, setMetrics] = useState({
     totalSessions: 0,
@@ -27,6 +28,7 @@ function App() {
   const [sessions, setSessions] = useState([]);
   const [personas, setPersonas] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const wsRef = useRef(null);
 
   const handleLogin = (loggedInUser) => {
@@ -37,14 +39,14 @@ function App() {
   const handleLogout = () => {
     sessionStorage.removeItem('va_user');
     setUser(null);
-    // Close any open WebSocket on logout
     if (wsRef.current) {
       wsRef.current.close();
     }
   };
 
-  // Fetch initial backend data
-  const fetchData = async () => {
+  // Fetch backend telemetry
+  const fetchData = async (showRefreshIndicator = false) => {
+    if (showRefreshIndicator) setIsRefreshing(true);
     try {
       const [resMetrics, resSessions, resPersonas] = await Promise.all([
         fetch('/api/metrics'),
@@ -68,12 +70,20 @@ function App() {
     } catch (err) {
       console.warn('Backend fetch error:', err.message);
       setIsConnected(false);
+    } finally {
+      if (showRefreshIndicator) {
+        setTimeout(() => setIsRefreshing(false), 350);
+      }
+      setInitialLoading(false);
     }
   };
 
   // Setup WebSocket + polling (only when logged in)
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setInitialLoading(false);
+      return;
+    }
 
     fetchData();
 
@@ -113,7 +123,7 @@ function App() {
 
     connectWebSocket();
 
-    const pollInterval = setInterval(fetchData, 5000);
+    const pollInterval = setInterval(() => fetchData(false), 5000);
 
     return () => {
       clearInterval(pollInterval);
@@ -122,8 +132,23 @@ function App() {
   }, [user]);
 
   const handleSessionUpdate = () => {
-    fetchData();
+    fetchData(false);
   };
+
+  // Initial Fullscreen Loader
+  if (initialLoading && user) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-logo">
+          <Radio size={32} />
+        </div>
+        <div className="loading-bar-wrap">
+          <div className="loading-bar" />
+        </div>
+        <span className="loading-text">INITIALIZING VOICE AGENT STUDIO...</span>
+      </div>
+    );
+  }
 
   // Show Login screen if not authenticated
   if (!user) {
@@ -151,7 +176,8 @@ function App() {
           <UsageDashboard
             metrics={metrics}
             sessions={sessions}
-            onRefresh={fetchData}
+            onRefresh={() => fetchData(true)}
+            isRefreshing={isRefreshing}
           />
         )}
       </main>
